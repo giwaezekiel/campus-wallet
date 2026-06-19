@@ -1,0 +1,34 @@
+{
+  "name": "hack",
+  "module": "server.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch server.ts",
+    "postinstall": "node -e \"const fs=require('fs');const p='node_modules/mongodb/node_modules/bson/lib/bson.cjs';if(fs.existsSync(p)){let c=fs.readFileSync(p,'utf8');c=c.replace(\\\"globalThis?.process?.getBuiltinModule('v8')\\\",\\\"(()=>{try{return globalThis?.process?.getBuiltinModule?.('v8')}catch(_){return{}}})()\\\" );c=c.replace('startupSnapshot?.isBuildingSnapshot()','(()=>{try{return typeof startupSnapshot?.isBuildingSnapshot===\"function\"&&startupSnapshot.isBuildingSnapshot()}catch(_){return false}})()');fs.writeFileSync(p,c);console.log('bson patched for Bun')}\" 2>/dev/null || true"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.19",
+    "@types/jsonwebtoken": "^9.0.10"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "overrides": {
+    "bson": "6.10.3"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/nodemailer": "^8.0.1",
+    "bcryptjs": "^3.0.3",
+    "bson": "^6.10.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "8",
+    "nodemailer": "^9.0.1"
+  }
+}

@@ -18,14 +18,13 @@ const allowedOrigins = [
 ].filter(Boolean);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 
-// Raw body for Paystack webhook signature verification
+// Raw body for Paystack webhook signature verification.
+// Keep req.body as the exact Buffer Paystack sent — the handler computes the
+// HMAC over these raw bytes, then parses. Re-stringifying parsed JSON would
+// change the byte order/spacing and break signature verification.
 app.use(
   "/api/payments/webhook",
   express.raw({ type: "application/json" }),
-  (req, _res, next) => {
-    if (Buffer.isBuffer(req.body)) req.body = JSON.parse(req.body.toString());
-    next();
-  },
 );
 
 app.use(express.json());

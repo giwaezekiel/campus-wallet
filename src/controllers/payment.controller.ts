@@ -141,17 +141,19 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
 export async function paystackWebhook(req: Request, res: Response) {
   const secret = config.PAYSTACK_SECRET_KEY;
   const signature = String(req.headers["x-paystack-signature"] ?? "");
-  const hash = crypto
-    .createHmac("sha512", secret)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
+
+  // req.body is the raw Buffer (see app.ts). Sign the exact bytes Paystack sent.
+  const rawBody = Buffer.isBuffer(req.body)
+    ? req.body
+    : Buffer.from(JSON.stringify(req.body));
+  const hash = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
 
   if (hash !== signature) {
     res.status(401).json({ message: "Invalid signature" });
     return;
   }
 
-  const { event, data } = req.body;
+  const { event, data } = JSON.parse(rawBody.toString());
   if (event === "charge.success") {
     try {
       const existing = await WalletTransaction.findOne({

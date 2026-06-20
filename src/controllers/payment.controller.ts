@@ -120,19 +120,21 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
 
     const amountNaira = data.amount / 100;
 
-    const wallet = await Wallet.findOneAndUpdate(
-      { user: user._id },
-      {
-        $inc: { balance: amountNaira },
-        $setOnInsert: {
-          user: user._id,
-        },
-      },
-      {
-        new: true,
-        upsert: true,
-      },
-    );
+    // Find or create wallet
+    let wallet = await Wallet.findOne({
+      user: user._id,
+    });
+
+    if (!wallet) {
+      wallet = await Wallet.create({
+        user: user._id,
+        balance: 0,
+      });
+    }
+
+    // Manual balance increment
+    wallet.balance += amountNaira;
+    await wallet.save();
 
     await WalletTransaction.create({
       user: user._id,
@@ -147,8 +149,9 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
       wallet,
     });
   } catch (err) {
-    console.error("VERIFY ERROR:", err);
-    res.status(500).json({
+    console.error(err);
+
+    return res.status(500).json({
       message: (err as Error).message,
     });
   }

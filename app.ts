@@ -14,7 +14,7 @@ export const app = express();
 const allowedOrigins = [
   config.CLIENT_URL,
   "http://localhost:3000",
-  "http://localhost:3001",
+  "https://campus-wallet-one.vercel.app",
 ].filter(Boolean);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 

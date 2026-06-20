@@ -7,6 +7,7 @@ export interface IBudget extends Document {
   spent: number;
   month: string; // "YYYY-MM"
   alertSent: boolean;
+  currency: String;
 }
 
 const budgetSchema = new Schema<IBudget>(
@@ -16,9 +17,14 @@ const budgetSchema = new Schema<IBudget>(
     limit: { type: Number, required: true, min: 1 },
     spent: { type: Number, default: 0 },
     month: { type: String, required: true },
+    currency: { type: String, default: "NGN" },
     alertSent: { type: Boolean, default: false },
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
 );
 
 budgetSchema.index({ user: 1, category: 1, month: 1 }, { unique: true });

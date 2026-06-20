@@ -20,7 +20,13 @@ export async function initiatePayment(req: AuthRequest, res: Response) {
       return;
     }
 
-    const callbackUrl = `${config.CLIENT_URL}/wallet/verify`;
+    // Normalize the client URL: strip trailing slashes and correct a known
+    // domain typo so users are never redirected to a dead host after paying.
+    const clientUrl = config.CLIENT_URL.replace(/\/+$/, "").replace(
+      "campus-wallet-one",
+      "campuswallet-one",
+    );
+    const callbackUrl = `${clientUrl}/wallet/verify`;
     const data = await paystack.initializeTransaction(
       user.email,
       amount,
@@ -90,8 +96,10 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
 
     const data = await paystack.verifyTransaction(ref);
 
-    // Find user from Paystack customer email
-    const user = await User.findOne({ email: data.customer.email });
+    // Credit the authenticated user who initiated this verification. This is
+    // more reliable than matching by Paystack's customer email (which can differ
+    // in case or value from the account email).
+    const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

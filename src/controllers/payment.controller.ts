@@ -32,43 +32,115 @@ export async function initiatePayment(req: AuthRequest, res: Response) {
   }
 }
 
+// export async function verifyPayment(req: AuthRequest, res: Response) {
+//   try {
+//     const ref = req.params["ref"] as string;
+//     const data = await paystack.verifyTransaction(ref);
+//     console.log(data.status);
+
+//     if (data.status === "success") {
+//       const amountNaira = data.amount / 100;
+
+//       // Credit wallet (idempotent — check reference not already processed)
+//       const existing = await WalletTransaction.findOne({
+//         reference: data.reference,
+//       });
+
+//       if (!existing) {
+//         const user = await User.findOne({
+//           email: data.customer.email,
+//         });
+
+//         if (!user) {
+//           throw new Error("User not found");
+//         }
+
+//         const wallet = await Wallet.findOneAndUpdate(
+//           { user: req.userId },
+//           { $inc: { balance: amountNaira } },
+//           { new: true, upsert: true },
+//         );
+//         console.log("updated wallet:", wallet);
+//         console.log("req.userId:", req.userId);
+//         console.log("reference:", ref);
+//         console.log("paystack data:", data);
+//         await WalletTransaction.create({
+//           user: req.userId,
+//           type: "credit",
+//           amount: amountNaira,
+//           description: "Wallet top-up via Paystack",
+//           reference: data.reference,
+//         });
+//       }
+//     }
+
+//     res.json({
+//       status: data.status,
+//       amount: data.amount,
+//       reference: data.reference,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: (err as Error).message });
+//   }
+// }
+
 export async function verifyPayment(req: AuthRequest, res: Response) {
   try {
-    const ref = req.params["ref"] as string;
+    console.log("=== VERIFY HIT ===");
+
+    const ref = req.params.ref as string;
+    console.log("Reference:", ref);
+
     const data = await paystack.verifyTransaction(ref);
-    console.log(data.status);
+    console.log("Paystack response:", data);
 
-    if (data.status === "success") {
-      const amountNaira = data.amount / 100;
+    console.log("Status:", data.status);
+    console.log("User ID:", req.userId);
 
-      // Credit wallet (idempotent — check reference not already processed)
-      const existing = await WalletTransaction.findOne({
-        reference: data.reference,
-      });
-      if (!existing) {
-        await Wallet.findOneAndUpdate(
-          { user: req.userId },
-          { $inc: { balance: amountNaira } },
-          { new: true, upsert: true },
-        );
-        console.log(Wallet);
-        await WalletTransaction.create({
-          user: req.userId,
-          type: "credit",
-          amount: amountNaira,
-          description: "Wallet top-up via Paystack",
-          reference: data.reference,
-        });
-      }
+    if (data.status !== "success") {
+      return res.json(data);
     }
 
-    res.json({
-      status: data.status,
-      amount: data.amount,
+    const amountNaira = data.amount / 100;
+
+    const existing = await WalletTransaction.findOne({
       reference: data.reference,
     });
+
+    console.log("Existing:", existing);
+
+    if (!existing) {
+      const wallet = await Wallet.findOneAndUpdate(
+        { user: req.userId },
+        {
+          $inc: { balance: amountNaira },
+          $setOnInsert: { user: req.userId },
+        },
+        {
+          new: true,
+          upsert: true,
+        },
+      );
+
+      console.log("Wallet:", wallet);
+
+      const tx = await WalletTransaction.create({
+        user: req.userId,
+        type: "credit",
+        amount: amountNaira,
+        description: "Wallet top-up via Paystack",
+        reference: data.reference,
+      });
+
+      console.log("Transaction:", tx);
+    }
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ message: (err as Error).message });
+    console.error("VERIFY ERROR:", err);
+    res.status(500).json({
+      message: (err as Error).message,
+    });
   }
 }
 

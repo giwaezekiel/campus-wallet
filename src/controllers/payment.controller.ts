@@ -15,10 +15,17 @@ export async function initiatePayment(req: AuthRequest, res: Response) {
     }
 
     const user = await User.findById(req.userId);
-    if (!user) { res.status(404).json({ message: "User not found" }); return; }
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
 
     const callbackUrl = `${config.CLIENT_URL}/wallet/verify`;
-    const data = await paystack.initializeTransaction(user.email, amount, callbackUrl);
+    const data = await paystack.initializeTransaction(
+      user.email,
+      amount,
+      callbackUrl,
+    );
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: (err as Error).message });
@@ -34,12 +41,14 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
       const amountNaira = data.amount / 100;
 
       // Credit wallet (idempotent — check reference not already processed)
-      const existing = await WalletTransaction.findOne({ reference: data.reference });
+      const existing = await WalletTransaction.findOne({
+        reference: data.reference,
+      });
       if (!existing) {
         await Wallet.findOneAndUpdate(
           { user: req.userId },
           { $inc: { balance: amountNaira } },
-          { upsert: true }
+          { new: true, upsert: true },
         );
         await WalletTransaction.create({
           user: req.userId,
@@ -51,7 +60,11 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
       }
     }
 
-    res.json({ status: data.status, amount: data.amount, reference: data.reference });
+    res.json({
+      status: data.status,
+      amount: data.amount,
+      reference: data.reference,
+    });
   } catch (err) {
     res.status(500).json({ message: (err as Error).message });
   }
@@ -73,17 +86,25 @@ export async function paystackWebhook(req: Request, res: Response) {
   const { event, data } = req.body;
   if (event === "charge.success") {
     try {
-      const existing = await WalletTransaction.findOne({ reference: data.reference });
-      if (existing) { res.sendStatus(200); return; }
+      const existing = await WalletTransaction.findOne({
+        reference: data.reference,
+      });
+      if (existing) {
+        res.sendStatus(200);
+        return;
+      }
 
       const user = await User.findOne({ email: data.customer.email });
-      if (!user) { res.sendStatus(200); return; }
+      if (!user) {
+        res.sendStatus(200);
+        return;
+      }
 
       const amountNaira = data.amount / 100;
       await Wallet.findOneAndUpdate(
         { user: user._id },
         { $inc: { balance: amountNaira } },
-        { upsert: true }
+        { upsert: true },
       );
       await WalletTransaction.create({
         user: user._id,
@@ -102,7 +123,10 @@ export async function paystackWebhook(req: Request, res: Response) {
 
 export async function getPaymentHistory(req: AuthRequest, res: Response) {
   try {
-    const history = await WalletTransaction.find({ user: req.userId, type: "credit" })
+    const history = await WalletTransaction.find({
+      user: req.userId,
+      type: "credit",
+    })
       .sort({ date: -1 })
       .limit(20);
     res.json(history);

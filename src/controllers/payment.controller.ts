@@ -90,70 +90,51 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
 
     const data = await paystack.verifyTransaction(ref);
 
-    if (data.status !== "success") {
-      return res.status(400).json({
-        message: "Payment verification failed",
-      });
-    }
-
-    // Prevent double-crediting
-    const existing = await WalletTransaction.findOne({
-      reference: data.reference,
-    });
-
-    if (existing) {
-      return res.status(200).json({
-        message: "Transaction already processed",
-      });
-    }
-
     // Find user from Paystack customer email
-    const user = await User.findOne({
-      email: data.customer.email,
-    });
-
+    const user = await User.findOne({ email: data.customer.email });
     if (!user) {
-      return res.status(404).json({
-        message: "User not found",
-      });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const amountNaira = data.amount / 100;
-
-    // Find or create wallet
-    let wallet = await Wallet.findOne({
-      user: user._id,
-    });
-
+    // Ensure the user always has a wallet to report a balance from
+    let wallet = await Wallet.findOne({ user: user._id });
     if (!wallet) {
-      wallet = await Wallet.create({
-        user: user._id,
-        balance: 0,
-      });
+      wallet = await Wallet.create({ user: user._id, balance: 0 });
     }
 
-    // Manual balance increment
-    wallet.balance += amountNaira;
-    await wallet.save();
+    // Only a successful charge credits the wallet
+    if (data.status === "success") {
+      // Idempotent: only credit once per Paystack reference
+      const existing = await WalletTransaction.findOne({
+        reference: data.reference,
+      });
 
-    await WalletTransaction.create({
-      user: user._id,
-      type: "credit",
-      amount: amountNaira,
-      description: "Wallet top-up via Paystack",
-      reference: data.reference,
-    });
+      if (!existing) {
+        const amountNaira = data.amount / 100;
 
+        wallet.balance += amountNaira;
+        await wallet.save();
+
+        await WalletTransaction.create({
+          user: user._id,
+          type: "credit",
+          amount: amountNaira,
+          description: "Wallet top-up via Paystack",
+          reference: data.reference,
+        });
+      }
+    }
+
+    // Shape matches the frontend verify page: { status, amount, reference }
     return res.status(200).json({
-      message: "Wallet funded successfully",
-      wallet,
+      status: data.status,
+      amount: data.amount,
+      reference: data.reference,
+      balance: wallet.balance,
     });
   } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      message: (err as Error).message,
-    });
+    console.error("[verifyPayment]", err);
+    return res.status(500).json({ message: (err as Error).message });
   }
 }
 

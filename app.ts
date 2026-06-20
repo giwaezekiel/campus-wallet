@@ -8,6 +8,7 @@ import expenseRoutes from "./src/routes/expense.route";
 import walletRoutes from "./src/routes/wallet.route";
 import paymentRoutes from "./src/routes/payment.route";
 import reportRoutes from "./src/routes/report.route";
+import insightRoutes from "./src/routes/insight.route";
 
 export const app = express();
 
@@ -40,6 +41,7 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/ai", insightRoutes);
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ message: "Route not found" });

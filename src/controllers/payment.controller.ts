@@ -36,6 +36,7 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
   try {
     const ref = req.params["ref"] as string;
     const data = await paystack.verifyTransaction(ref);
+    console.log(data.status);
 
     if (data.status === "success") {
       const amountNaira = data.amount / 100;
@@ -50,6 +51,7 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
           { $inc: { balance: amountNaira } },
           { new: true, upsert: true },
         );
+        console.log(Wallet);
         await WalletTransaction.create({
           user: req.userId,
           type: "credit",

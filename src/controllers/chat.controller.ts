@@ -6,9 +6,9 @@ import { config } from "../../shared/config/config";
 
 type ChatMessage = { role: "user" | "model"; content: string };
 
-// Allow overriding the model via env. gemini-1.5-flash tends to have the most
-// generous free-tier quota; switch with GEMINI_MODEL if you hit limits.
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
+// Allow overriding the model via env. gemini-2.5-flash is current and free-tier
+// friendly; the 1.5 models are retired. Switch with GEMINI_MODEL if needed.
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 
 // Build a snapshot of the user's current-month finances to ground the AI's answers.
 async function buildFinancialContext(userId: string): Promise<string> {
@@ -95,7 +95,13 @@ ${context}
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 600 },
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 600,
+          // Disable gemini-2.5 "thinking" tokens so the full budget goes to the
+          // visible reply (and to conserve free-tier quota).
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     });
 

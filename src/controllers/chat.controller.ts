@@ -6,7 +6,9 @@ import { config } from "../../shared/config/config";
 
 type ChatMessage = { role: "user" | "model"; content: string };
 
-const GEMINI_MODEL = "gemini-2.0-flash";
+// Allow overriding the model via env. gemini-1.5-flash tends to have the most
+// generous free-tier quota; switch with GEMINI_MODEL if you hit limits.
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
 
 // Build a snapshot of the user's current-month finances to ground the AI's answers.
 async function buildFinancialContext(userId: string): Promise<string> {
@@ -97,6 +99,13 @@ ${context}
       }),
     });
 
+    if (gRes.status === 429) {
+      res.status(429).json({
+        message:
+          "The AI assistant is busy (free-tier limit reached). Please wait a minute and try again.",
+      });
+      return;
+    }
     if (!gRes.ok) {
       const detail = await gRes.text().catch(() => "");
       throw new Error(`Gemini API error ${gRes.status}: ${detail.slice(0, 200)}`);

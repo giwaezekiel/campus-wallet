@@ -4,6 +4,7 @@ import { User } from "../model/user.model";
 import { Wallet } from "../model/wallet.model";
 import { config } from "../../shared/config/config";
 import { sendWelcomeEmail } from "../../shared/email/notification";
+import bcrypt from "bcryptjs";
 
 function signToken(id: string) {
   return jwt.sign({ id }, config.JWT_SECRET, {
@@ -11,6 +12,7 @@ function signToken(id: string) {
   });
 }
 
+//create user
 export async function register(req: Request, res: Response) {
   try {
     const { name, email, password, school } = req.body;
@@ -18,14 +20,24 @@ export async function register(req: Request, res: Response) {
       res.status(400).json({ message: "All fields are required" });
       return;
     }
+
+    //check if user exists
     const exists = await User.findOne({ email });
     if (exists) {
       res.status(409).json({ message: "Email already registered" });
       return;
     }
-    const user = await User.create({ name, email, password, school });
+
+    // hash user password
+    const hash = await bcrypt.hash(password, 10);
+
+    //create  user
+    const user = await User.create({ name, email, password: hash, school });
+
+    //create user wallet
     await Wallet.create({ user: user._id });
 
+    //email new user
     sendWelcomeEmail({ email, name }).catch(() => {});
 
     const token = signToken(user.id);
@@ -50,6 +62,7 @@ export async function register(req: Request, res: Response) {
   }
 }
 
+//get/login a user
 export async function login(req: Request, res: Response) {
   try {
     const { email, password } = req.body;
@@ -57,11 +70,16 @@ export async function login(req: Request, res: Response) {
       res.status(400).json({ message: "Email and password are required" });
       return;
     }
+
+    //find user
     const user = await User.findOne({ email }).select("+password");
-    if (!user || !(await user.comparePassword(password))) {
+    //compare password
+    const compare = await bcrypt.compare(password, user?.password as string);
+    if (!user || !compare) {
       res.status(401).json({ message: "Invalid email or password" });
       return;
     }
+    //generate token
     const token = signToken(user.id);
     res.json({
       token,
@@ -80,6 +98,7 @@ export async function login(req: Request, res: Response) {
 
 export async function me(req: Request & { userId?: string }, res: Response) {
   try {
+    //fetch user
     const user = await User.findById(req.userId).select("-password");
     if (!user) {
       res.status(404).json({ message: "User not found" });

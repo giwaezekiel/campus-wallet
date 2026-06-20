@@ -4,6 +4,7 @@ import { Expense } from "../model/expense.model";
 import { Budget } from "../model/budget.model";
 import { User } from "../model/user.model";
 import { sendBudgetAlert } from "../../shared/email/notification";
+import mongoose from "mongoose";
 
 async function checkAndAlertBudget(userId: string, category: string) {
   const month = new Date().toISOString().slice(0, 7);
@@ -57,7 +58,11 @@ export async function createExpense(req: AuthRequest, res: Response) {
 
 export async function getExpenses(req: AuthRequest, res: Response) {
   try {
-    const { category, month, limit = "50" } = req.query as Record<string, string>;
+    const {
+      category,
+      month,
+      limit = "50",
+    } = req.query as Record<string, string>;
     const filter: Record<string, unknown> = { user: req.userId };
 
     if (category) filter.category = category;
@@ -78,8 +83,14 @@ export async function getExpenses(req: AuthRequest, res: Response) {
 
 export async function getExpense(req: AuthRequest, res: Response) {
   try {
-    const expense = await Expense.findOne({ _id: req.params.id, user: req.userId });
-    if (!expense) { res.status(404).json({ message: "Expense not found" }); return; }
+    const expense = await Expense.findOne({
+      _id: req.params.id,
+      user: req.userId,
+    });
+    if (!expense) {
+      res.status(404).json({ message: "Expense not found" });
+      return;
+    }
     res.json(expense);
   } catch (err) {
     res.status(500).json({ message: (err as Error).message });
@@ -91,9 +102,12 @@ export async function updateExpense(req: AuthRequest, res: Response) {
     const expense = await Expense.findOneAndUpdate(
       { _id: req.params.id, user: req.userId },
       req.body,
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
-    if (!expense) { res.status(404).json({ message: "Expense not found" }); return; }
+    if (!expense) {
+      res.status(404).json({ message: "Expense not found" });
+      return;
+    }
     res.json(expense);
   } catch (err) {
     res.status(500).json({ message: (err as Error).message });
@@ -102,14 +116,20 @@ export async function updateExpense(req: AuthRequest, res: Response) {
 
 export async function deleteExpense(req: AuthRequest, res: Response) {
   try {
-    const expense = await Expense.findOneAndDelete({ _id: req.params.id, user: req.userId });
-    if (!expense) { res.status(404).json({ message: "Expense not found" }); return; }
+    const expense = await Expense.findOneAndDelete({
+      _id: req.params.id,
+      user: req.userId,
+    });
+    if (!expense) {
+      res.status(404).json({ message: "Expense not found" });
+      return;
+    }
 
     // Reverse the budget spent amount
     const month = (expense.date as Date).toISOString().slice(0, 7);
     await Budget.findOneAndUpdate(
       { user: req.userId, category: expense.category, month },
-      { $inc: { spent: -expense.amount } }
+      { $inc: { spent: -expense.amount } },
     );
 
     res.json({ message: "Deleted" });
@@ -121,7 +141,9 @@ export async function deleteExpense(req: AuthRequest, res: Response) {
 export async function getExpenseSummary(req: AuthRequest, res: Response) {
   try {
     const { month } = req.query as { month?: string };
-    const start = month ? new Date(`${month}-01`) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const start = month
+      ? new Date(`${month}-01`)
+      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
 
     const [summary] = await Expense.aggregate([
@@ -159,4 +181,8 @@ export async function getExpenseTrends(req: AuthRequest, res: Response) {
   } catch (err) {
     res.status(500).json({ message: (err as Error).message });
   }
+}
+
+export async function getAIInsights(req: AuthRequest, res: Response) {
+  
 }

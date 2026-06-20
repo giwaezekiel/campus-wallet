@@ -2,6 +2,7 @@ import { type Response } from "express";
 import { type AuthRequest } from "../middleware/auth.middleware";
 import { Wallet, WalletTransaction } from "../model/wallet.model";
 
+
 export async function getBalance(req: AuthRequest, res: Response) {
   try {
     const wallet = await Wallet.findOne({ user: req.userId });

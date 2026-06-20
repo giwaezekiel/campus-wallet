@@ -200,14 +200,15 @@ export async function paystackWebhook(req: Request, res: Response) {
         description: "Wallet top-up via Paystack",
         reference: data.reference,
       });
-    } catch {
-      // Log but still respond 200 — Paystack will not retry on non-200
+    } catch (err) {
+      res.status(500).json({ message: (err as Error).message });
     }
   }
 
   res.sendStatus(200);
 }
 
+//get payment history
 export async function getPaymentHistory(req: AuthRequest, res: Response) {
   try {
     const history = await WalletTransaction.find({

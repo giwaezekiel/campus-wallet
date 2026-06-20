@@ -10,4 +10,5 @@ export const config = {
   EMAIL_PASS: process.env.EMAIL_PASS,
   PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY as string,
   CLIENT_URL: process.env.CLIENT_URL ?? "http://localhost:3000",
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
 };

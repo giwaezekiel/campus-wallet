@@ -20,7 +20,13 @@ export async function initiatePayment(req: AuthRequest, res: Response) {
       return;
     }
 
-    const callbackUrl = `${config.CLIENT_URL}/wallet/verify`;
+    // Normalize the client URL: strip trailing slashes and correct a known
+    // domain typo so users are never redirected to a dead host after paying.
+    const clientUrl = config.CLIENT_URL.replace(/\/+$/, "").replace(
+      "campus-wallet-one",
+      "campuswallet-one",
+    );
+    const callbackUrl = `${clientUrl}/wallet/verify`;
     const data = await paystack.initializeTransaction(
       user.email,
       amount,
@@ -90,87 +96,72 @@ export async function verifyPayment(req: AuthRequest, res: Response) {
 
     const data = await paystack.verifyTransaction(ref);
 
-    if (data.status !== "success") {
-      return res.status(400).json({
-        message: "Payment verification failed",
-      });
-    }
-
-    // Prevent double-crediting
-    const existing = await WalletTransaction.findOne({
-      reference: data.reference,
-    });
-
-    if (existing) {
-      return res.status(200).json({
-        message: "Transaction already processed",
-      });
-    }
-
-    // Find user from Paystack customer email
-    const user = await User.findOne({
-      email: data.customer.email,
-    });
-
+    // Credit the authenticated user who initiated this verification. This is
+    // more reliable than matching by Paystack's customer email (which can differ
+    // in case or value from the account email).
+    const user = await User.findById(req.userId);
     if (!user) {
-      return res.status(404).json({
-        message: "User not found",
-      });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    const amountNaira = data.amount / 100;
-
-    // Find or create wallet
-    let wallet = await Wallet.findOne({
-      user: user._id,
-    });
-
+    // Ensure the user always has a wallet to report a balance from
+    let wallet = await Wallet.findOne({ user: user._id });
     if (!wallet) {
-      wallet = await Wallet.create({
-        user: user._id,
-        balance: 0,
-      });
+      wallet = await Wallet.create({ user: user._id, balance: 0 });
     }
 
-    // Manual balance increment
-    wallet.balance += amountNaira;
-    await wallet.save();
+    // Only a successful charge credits the wallet
+    if (data.status === "success") {
+      // Idempotent: only credit once per Paystack reference
+      const existing = await WalletTransaction.findOne({
+        reference: data.reference,
+      });
 
-    await WalletTransaction.create({
-      user: user._id,
-      type: "credit",
-      amount: amountNaira,
-      description: "Wallet top-up via Paystack",
-      reference: data.reference,
-    });
+      if (!existing) {
+        const amountNaira = data.amount / 100;
 
+        wallet.balance += amountNaira;
+        await wallet.save();
+
+        await WalletTransaction.create({
+          user: user._id,
+          type: "credit",
+          amount: amountNaira,
+          description: "Wallet top-up via Paystack",
+          reference: data.reference,
+        });
+      }
+    }
+
+    // Shape matches the frontend verify page: { status, amount, reference }
     return res.status(200).json({
-      message: "Wallet funded successfully",
-      wallet,
+      status: data.status,
+      amount: data.amount,
+      reference: data.reference,
+      balance: wallet.balance,
     });
   } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      message: (err as Error).message,
-    });
+    console.error("[verifyPayment]", err);
+    return res.status(500).json({ message: (err as Error).message });
   }
 }
 
 export async function paystackWebhook(req: Request, res: Response) {
   const secret = config.PAYSTACK_SECRET_KEY;
   const signature = String(req.headers["x-paystack-signature"] ?? "");
-  const hash = crypto
-    .createHmac("sha512", secret)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
+
+  // req.body is the raw Buffer (see app.ts). Sign the exact bytes Paystack sent.
+  const rawBody = Buffer.isBuffer(req.body)
+    ? req.body
+    : Buffer.from(JSON.stringify(req.body));
+  const hash = crypto.createHmac("sha512", secret).update(rawBody).digest("hex");
 
   if (hash !== signature) {
     res.status(401).json({ message: "Invalid signature" });
     return;
   }
 
-  const { event, data } = req.body;
+  const { event, data } = JSON.parse(rawBody.toString());
   if (event === "charge.success") {
     try {
       const existing = await WalletTransaction.findOne({

@@ -1,8 +1,12 @@
 import { Router } from "express";
-import { getAIInsights } from "../controllers/aiInsight.controller";
+import { authenticate } from "../middleware/auth.middleware";
+import { chatBudget } from "../controllers/chat.controller";
+import { planBudget, applyPlan } from "../controllers/planner.controller";
 
 const insightRouter = Router();
 
-router.get("/insights", getAIInsights);
+insightRouter.post("/chat", chatBudget);
+insightRouter.post("/plan", planBudget);
+insightRouter.post("/plan/apply", applyPlan);
 
-export default router;
+export default insightRouter;

@@ -11,4 +11,5 @@ export const config = {
   PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY as string,
   CLIENT_URL: process.env.CLIENT_URL ?? "http://localhost:3000",
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY as string,
 };

@@ -1,10 +1,14 @@
 import { type Response } from "express";
+import { Types } from "mongoose";
 import { type AuthRequest } from "../middleware/auth.middleware";
 import { Expense } from "../model/expense.model";
 import { Budget } from "../model/budget.model";
 import { User } from "../model/user.model";
 import { sendBudgetAlert } from "../../shared/email/notification";
 import mongoose from "mongoose";
+
+// aggregate() doesn't cast string ids to ObjectId the way find() does.
+const oid = (id?: string) => new Types.ObjectId(id);
 
 async function checkAndAlertBudget(userId: string, category: string) {
   const month = new Date().toISOString().slice(0, 7);
@@ -147,7 +151,7 @@ export async function getExpenseSummary(req: AuthRequest, res: Response) {
     const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
 
     const [summary] = await Expense.aggregate([
-      { $match: { user: req.userId, date: { $gte: start, $lt: end } } },
+      { $match: { user: oid(req.userId), date: { $gte: start, $lt: end } } },
       {
         $group: {
           _id: null,
@@ -166,7 +170,7 @@ export async function getExpenseSummary(req: AuthRequest, res: Response) {
 export async function getExpenseTrends(req: AuthRequest, res: Response) {
   try {
     const trends = await Expense.aggregate([
-      { $match: { user: req.userId } },
+      { $match: { user: oid(req.userId) } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m", date: "$date" } },

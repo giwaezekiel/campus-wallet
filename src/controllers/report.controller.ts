@@ -1,6 +1,11 @@
 import { type Response } from "express";
+import { Types } from "mongoose";
 import { type AuthRequest } from "../middleware/auth.middleware";
 import { Expense } from "../model/expense.model";
+
+// aggregate() does NOT auto-cast string ids the way find() does, so $match on a
+// raw req.userId string never matches the ObjectId-typed user field. Cast first.
+const oid = (id?: string) => new Types.ObjectId(id);
 
 export async function getMonthlyReport(req: AuthRequest, res: Response) {
   try {
@@ -11,7 +16,7 @@ export async function getMonthlyReport(req: AuthRequest, res: Response) {
     const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
 
     const [summary] = await Expense.aggregate([
-      { $match: { user: req.userId, date: { $gte: start, $lt: end } } },
+      { $match: { user: oid(req.userId), date: { $gte: start, $lt: end } } },
       {
         $group: {
           _id: null,
@@ -36,7 +41,7 @@ export async function getBreakdown(req: AuthRequest, res: Response) {
     const end = new Date(start.getFullYear(), start.getMonth() + 1, 1);
 
     const groups = await Expense.aggregate([
-      { $match: { user: req.userId, date: { $gte: start, $lt: end } } },
+      { $match: { user: oid(req.userId), date: { $gte: start, $lt: end } } },
       { $group: { _id: "$category", amount: { $sum: "$amount" } } },
       { $sort: { amount: -1 } },
     ]);
